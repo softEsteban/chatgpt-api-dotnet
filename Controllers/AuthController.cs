@@ -18,52 +18,39 @@ namespace ChatGptApi.Controllers
             _authService = authService;
         }
 
-        // [HttpPost("register")]
-        // public ActionResult<User> Register(UserDto userDto)
-        // {
-        //     // AuthService authService = new AuthService();
-        //     User user = _authService.Register(userDto);
-        //     return Ok(user);
-        // }
+        [HttpPost("register")]
+        public async Task<ActionResult<User>> Register(UserDto userDto)
+        {
+            User user = await _authService.Register(userDto);
+            return Ok(user);
+        }
 
-        // [HttpPost("login")]
-        // public ActionResult<string> Login(UserDto userDto)
-        // {
-        //     // AuthService authService = new AuthService();
-        //     string token = _authService.Login(userDto);
-        //     if (token == null)
-        //     {
-        //         return BadRequest("Invalid credentials.");
-        //     }
+        [HttpPost("login")]
+        public async Task<ActionResult<string>> Login(UserDto userDto)
+        {
+            string token = await _authService.Login(userDto);
 
-        //     return Ok(token);
-        // }
+            if (token == "User not found.")
+            {
+                return BadRequest("Invalid credentials.");
+            }
 
-        [HttpGet]
+            if (token == "Wrong password.")
+            {
+                return BadRequest("Invalid credentials.");
+            }
+
+            return Ok(token);
+        }
+
+        [HttpGet("getUsers")]
         public async Task<List<User>> Get() => await _authService.GetAsync();
 
-        [HttpPost]
+        [HttpPost("createUser")]
         public async Task<IActionResult> Post(User newUser)
         {
             await _authService.CreateAsync(newUser);
             return CreatedAtAction(nameof(Get), new { id = newUser.Id }, newUser);
         }
-
-        // [HttpPut("{id:length(24)}")]
-        // public async Task<IActionResult> Update(string id, User updatedUser)
-        // {
-        //     var user = await _authService.GetAsync(id);
-
-        //     if (user is null)
-        //     {
-        //         return NotFound();
-        //     }
-
-        //     updatedUser.Id = user.Id;
-
-        //     await _authService.UpdateAsync(id, updatedUser);
-
-        //     return NoContent();
-        // }
     }
 }

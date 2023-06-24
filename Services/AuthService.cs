@@ -17,7 +17,10 @@ namespace ChatGptApi.Services
         private readonly IConfiguration _configuration;
         private string Token;
 
-        public AuthService(IOptions<GptApiDatabaseSettings> gptApiDatabaseSettings)
+        public AuthService(
+            IOptions<GptApiDatabaseSettings> gptApiDatabaseSettings,
+            IConfiguration configuration
+        )
         {
             var mongoClient = new MongoClient(gptApiDatabaseSettings.Value.ConnectionString);
             var mongoDatabase = mongoClient.GetDatabase(gptApiDatabaseSettings.Value.DatabaseName);
@@ -31,47 +34,41 @@ namespace ChatGptApi.Services
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .AddEnvironmentVariables();
             IConfiguration config = builder.Build();
+
+            _configuration = configuration;
             Token = config["Token"];
         }
 
-        public async Task<List<User>> GetAsync()
+        public async Task<User> Register(UserDto userDto)
         {
-            return await _usersCollection.Find(_ => true).ToListAsync();
+            string hashedPassword = BCrypt.Net.BCrypt.HashPassword(userDto.Password);
+
+            User user = new User { username = userDto.Username, passwordHash = hashedPassword };
+
+            await _usersCollection.InsertOneAsync(user);
+
+            return user;
         }
 
-        public async Task CreateAsync(User createUser)
+        public async Task<string> Login(UserDto userDto)
         {
-            await _usersCollection.InsertOneAsync(createUser);
+            User user = await _usersCollection
+                .Find(x => x.username == userDto.Username)
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+            {
+                return "User not found.";
+            }
+
+            if (!BCrypt.Net.BCrypt.Verify(userDto.Password, user.passwordHash))
+            {
+                return "Wrong password.";
+            }
+
+            string token = CreateToken(user.username);
+            return token;
         }
-
-        public async Task UpdateAsync(string id, User updateUser)
-        {
-            await _usersCollection.ReplaceOneAsync(x => x.Id == id, updateUser);
-        }
-
-        // public User Register(UserDto userDto)
-        // {
-        //     string hashedPassword = BCrypt.Net.BCrypt.HashPassword(userDto.Password);
-        //     user.Username = userDto.Username;
-        //     user.PasswordHash = hashedPassword;
-        //     return user;
-        // }
-
-        // public string Login(UserDto userDto)
-        // {
-        //     if (userDto.Username != user.Username)
-        //     {
-        //         return "User not found.";
-        //     }
-
-        //     if (!BCrypt.Net.BCrypt.Verify(userDto.Password, user.PasswordHash))
-        //     {
-        //         return "Wrong password.";
-        //     }
-
-        //     string token = CreateToken(user.Username);
-        //     return token;
-        // }
 
         public string CreateToken(string username)
         {
@@ -92,6 +89,21 @@ namespace ChatGptApi.Services
             var jwt = new JwtSecurityTokenHandler().WriteToken(token);
 
             return jwt;
+        }
+
+        public async Task<List<User>> GetAsync()
+        {
+            return await _usersCollection.Find(_ => true).ToListAsync();
+        }
+
+        public async Task CreateAsync(User createUser)
+        {
+            await _usersCollection.InsertOneAsync(createUser);
+        }
+
+        public async Task UpdateAsync(string id, User updateUser)
+        {
+            await _usersCollection.ReplaceOneAsync(x => x.Id == id, updateUser);
         }
     }
 }
